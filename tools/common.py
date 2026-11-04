@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+import os
 import sys
 import string
 import logging
@@ -12,6 +13,9 @@ init(autoreset=True)
 
 requests.packages.urllib3.disable_warnings(InsecureRequestWarning)
 
+LOG_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "logs")
+os.makedirs(LOG_DIR, exist_ok=True)
+
 DEFAULT_HEADERS = {
     "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36",
     "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
@@ -20,6 +24,7 @@ DEFAULT_HEADERS = {
     "Connection": "keep-alive",
     "Upgrade-Insecure-Requests": "1",
 }
+
 
 def setup_logger(log_file, name="BlindSQLiPro"):
     logger = logging.getLogger(name)
@@ -40,7 +45,8 @@ def setup_logger(log_file, name="BlindSQLiPro"):
     logger.addHandler(ch)
     return logger
 
-def banner(title="B L I N D   S Q L I   P R O", subtitle="", version="3.7"):
+
+def banner(title="B L I N D   S Q L I   B R U T E   T O O L", subtitle="", version="2.0"):
     print(f"""
 {Fore.CYAN}
     ====================================================================
@@ -55,20 +61,25 @@ def banner(title="B L I N D   S Q L I   P R O", subtitle="", version="3.7"):
 {Style.RESET_ALL}
     """)
 
+
 def log_info(msg, color=Fore.GREEN):
     print(f"{color}[+]{Style.RESET_ALL} {msg}")
+
 
 def log_warn(msg, color=Fore.YELLOW):
     print(f"{color}[!]{Style.RESET_ALL} {msg}")
 
+
 def log_error(msg, color=Fore.RED):
     print(f"{color}[-]{Style.RESET_ALL} {msg}")
+
 
 def build_charset(use_special=False):
     charset = string.ascii_lowercase + string.ascii_uppercase + string.digits
     if use_special:
         charset += "!@#$%^&*()-_=+[]{}|;:,.<>?/\\~`"
     return charset
+
 
 def make_session(retries=3):
     session = requests.Session()
@@ -77,13 +88,17 @@ def make_session(retries=3):
     session.mount('https://', adapter)
     return session
 
+
 def make_proxies(proxy):
     if not proxy:
         return None
     return {'http': proxy, 'https': proxy}
 
+
 def timestamp_log_name(prefix="sqli"):
-    return f"{prefix}_results_{datetime.now().strftime('%Y%m%d_%H%M%S')}.log"
+    fname = f"{prefix}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.log"
+    return os.path.join(LOG_DIR, fname)
+
 
 def prompt_url():
     while True:
@@ -92,6 +107,7 @@ def prompt_url():
             return url
         log_error("URL must start with http:// or https://. Try again.")
 
+
 def prompt_tracking():
     while True:
         t = input(f"{Fore.CYAN}Enter your Base Tracking ID value: {Style.RESET_ALL}").strip()
@@ -99,29 +115,34 @@ def prompt_tracking():
             return t
         log_error("Tracking ID cannot be empty. Try again.")
 
+
 def prompt_cookie_name():
     c = input(f"{Fore.CYAN}Enter Cookie Name vulnerable to SQLi [Default: TrackingId]: {Style.RESET_ALL}").strip()
     return c if c else "TrackingId"
+
 
 def prompt_session_cookie():
     s = input(f"{Fore.CYAN}Enter Session Cookie value (leave blank if none): {Style.RESET_ALL}").strip()
     return s if s else None
 
+
 def prompt_users():
     u = input(f"{Fore.CYAN}Enter Username(s) to target (comma separated) [Default: administrator]: {Style.RESET_ALL}").strip()
     return u if u else "administrator"
 
+
 def prompt_length():
-    v = input(f"{Fore.CYAN}Enter expected password length (e.g., 20) or leave blank for auto-detect: {Style.RESET_ALL}").strip()
-    if v:
-        try:
-            n = int(v)
-            if n > 0:
-                return n
-        except ValueError:
-            pass
-        log_warn("Invalid length. Auto-detection will be used.")
-    return None
+    while True:
+        v = input(f"{Fore.CYAN}Enter password length (REQUIRED, e.g., 20): {Style.RESET_ALL}").strip()
+        if v:
+            try:
+                n = int(v)
+                if n > 0:
+                    return n
+            except ValueError:
+                pass
+        log_error("Password length is required. Enter a positive integer.")
+
 
 def prompt_proxy():
     use = input(f"{Fore.CYAN}Route traffic through Burp Suite proxy (127.0.0.1:8080)? (y/N): {Style.RESET_ALL}").strip().lower()
@@ -129,6 +150,7 @@ def prompt_proxy():
         log_info("Proxy enabled: Traffic will route through Burp Suite.")
         return "http://127.0.0.1:8080"
     return None
+
 
 def prompt_workers(default=1):
     w = input(f"{Fore.CYAN}Enter number of workers [Default: {default}, use 1 for PortSwigger]: {Style.RESET_ALL}").strip()
@@ -140,9 +162,11 @@ def prompt_workers(default=1):
             pass
     return default
 
+
 def prompt_special():
     s = input(f"{Fore.CYAN}Include special characters in charset? (y/N): {Style.RESET_ALL}").strip().lower()
     return s == 'y'
+
 
 def prompt_timeout(default=15):
     t = input(f"{Fore.CYAN}Enter request timeout in seconds [Default: {default}]: {Style.RESET_ALL}").strip()
