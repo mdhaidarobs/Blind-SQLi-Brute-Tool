@@ -4,7 +4,7 @@ A command-line tool to automate Blind SQL Injection vulnerability exploitation.
 
 <p><a href="https://www.python.org/"><img src="https://img.shields.io/badge/python-3.x-blue.svg" alt="Python Version"></a><a href="https://opensource.org/licenses/MIT"><img src="https://img.shields.io/badge/License-MIT-yellow.svg" alt="MIT License"></a><a href="https://github.com/mdhaidarobs"><img src="https://img.shields.io/badge/Author-Md%20Haidar-orange.svg" alt="Author"></a></p>
 
-<p>A lightweight, powerful, and interactive Command-Line Interface (CLI) tool designed to automate <b>Blind SQL Injection</b> testing across both <b>Boolean-based (Conditional Responses)</b> and <b>Error-based (Oracle conditional errors)</b> scenarios. Built for security enthusiasts, penetration testers, and CTF players to practice database security testing in authorized environments such as PortSwigger Web Security Academy.</p>
+<p>A lightweight, powerful, and interactive Command-Line Interface (CLI) tool designed to automate <b>Blind SQL Injection</b> testing across three scenarios: <b>Boolean-based</b> (conditional responses), <b>Error-based</b> (Oracle conditional errors / HTTP 500), and <b>Time-based</b> (pg_sleep / SLEEP / WAITFOR). Built for security enthusiasts, penetration testers, and CTF players to practice database security testing in authorized environments such as PortSwigger Web Security Academy.</p>
 
 <hr>
 
@@ -19,13 +19,14 @@ A command-line tool to automate Blind SQL Injection vulnerability exploitation.
 <h2>Features & Benefits</h2>
 
 <ul>
-  <li><b>Dual Injection Engines:</b> Dedicated modules for Boolean-based (response contains "Welcome back") and Error-based (HTTP 500 / Oracle <code>TO_CHAR(1/0)</code>) Blind SQLi.</li>
-  <li><b>Smart Selector Menu:</b> Launch <code>main.py</code> to pick the correct engine interactively, or call it directly via <code>-m1</code> / <code>-m2</code> flags.</li>
-  <li><b>Interactive CLI Wizard:</b> Full user control over URL, Target Cookie name, Custom Session Cookies, Target Username(s), and Password Length.</li>
+  <li><b>Triple Injection Engines:</b> Dedicated modules for Boolean-based (response contains "Welcome back"), Error-based (HTTP 500 / Oracle <code>TO_CHAR(1/0)</code>), and Time-based (PostgreSQL <code>pg_sleep()</code>, MySQL <code>SLEEP()</code>, Oracle <code>DBMS_PIPE.RECEIVE_MESSAGE</code>, MSSQL <code>WAITFOR DELAY</code>) Blind SQLi.</li>
+  <li><b>Auto DBMS Detection:</b> Pass <code>-db auto</code> (default) and the engine probes MySQL, PostgreSQL, Oracle, MSSQL, and SQLite in order, locking onto the first DBMS that responds — or force a specific DBMS with <code>-db postgres</code> / <code>-db oracle</code> / etc.</li>
+  <li><b>Smart Selector Menu:</b> Launch <code>main.py</code> to pick the correct engine interactively (1 = Boolean, 2 = Error, 3 = Time), view Help (98), About (99), or Exit (0). Direct CLI flags <code>-m1</code> / <code>-m2</code> / <code>-m3</code> are also available.</li>
+  <li><b>Interactive CLI Wizard:</b> Full user control over URL, Target Cookie name, Custom Session Cookies, Target Username(s), Password Length, DBMS, proxy, workers, timeout, and time-based delay/threshold.</li>
   <li><b>Manual Password Length:</b> User supplies the exact length via <code>-l</code> for maximum speed — no slow auto-detection overhead.</li>
   <li><b>Multi-Threaded Enumeration:</b> Parallel character extraction via <code>ThreadPoolExecutor</code> (configurable workers).</li>
-  <li><b>Dual Detection Logic:</b> Boolean engine matches a configurable success string; Error engine detects server-side 500 errors reliably.</li>
-  <li><b>Oracle & MySQL Payloads:</b> Uses <code>SUBSTR()</code> for Oracle-based labs and <code>substring()</code> for Boolean-based labs.</li>
+  <li><b>Triple Detection Logic:</b> Boolean engine matches a configurable success string; Error engine detects server-side 500 errors reliably; Time engine measures elapsed time against a configurable threshold.</li>
+  <li><b>DBMS-Aware Payloads:</b> Uses <code>substring()</code> / <code>SUBSTR()</code> / <code>SUBSTRING()</code>, <code>pg_sleep()</code> / <code>SLEEP()</code> / <code>WAITFOR DELAY</code>, <code>TO_CHAR(1/0)</code> depending on the detected DBMS.</li>
   <li><b>Custom Charset:</b> Alphanumeric by default; enable <code>-s</code> flag to include special characters.</li>
   <li><b>Burp Suite Integration:</b> Built-in proxy support to route traffic through Burp Suite (<code>127.0.0.1:8080</code>) for debugging and monitoring requests.</li>
   <li><b>Browser-Like Headers:</b> Sends realistic User-Agent and browser headers to bypass basic WAF filtering.</li>
@@ -47,7 +48,8 @@ A command-line tool to automate Blind SQL Injection vulnerability exploitation.
 │   ├── __init__.py
 │   ├── common.py
 │   ├── boolean_sqli.py
-│   └── error_sqli.py
+│   ├── error_sqli.py
+│   └── time_sqli.py
 └── logs/
     └── (auto-generated log files)
 </code></pre>
@@ -124,25 +126,40 @@ python main.py
 
 <p>The tool displays a selector menu:</p>
 
-<pre><code>[1] Boolean-based Blind SQLi  (response contains "Welcome back")
-[2] Error-based Blind SQLi    (server returns HTTP 500 / Internal Server Error)
-[3] Exit
+<pre><code>[1]  Boolean-based Blind SQLi  (response contains "Welcome back")
+[2]  Error-based Blind SQLi    (server returns HTTP 500 / Internal Server Error)
+[3]  Time-based Blind SQLi     (pg_sleep / SLEEP / WAITFOR delay)
+[98] Help
+[99] About
+[0]  Exit
 </code></pre>
 
-<p>Choose <code>1</code> or <code>2</code> and follow the interactive prompts.</p>
+<p>Choose <code>1</code>, <code>2</code>, or <code>3</code> and follow the interactive prompts.</p>
 
 <h3>Direct CLI Mode</h3>
 
 <p><b>Boolean-based lab:</b></p>
 
 <pre><code>python3 main.py -m1 -u "https://LAB.web-security-academy.net/filter?category=Gifts" \
-  -t "YOUR_TRACKING_ID" -sc "YOUR_SESSION_ID" -l 20 -w 1 -s
+  -t "YOUR_TRACKING_ID" -sc "YOUR_SESSION_ID" -l 20 -w 1 -db auto
 </code></pre>
 
 <p><b>Error-based (Oracle) lab:</b></p>
 
 <pre><code>python3 main.py -m2 -u "https://LAB.web-security-academy.net/filter?category=Gifts" \
-  -t "YOUR_TRACKING_ID" -sc "YOUR_SESSION_ID" -l 20 -w 1 -s
+  -t "YOUR_TRACKING_ID" -sc "YOUR_SESSION_ID" -l 20 -w 1 -db oracle
+</code></pre>
+
+<p><b>Time-based (PostgreSQL) lab:</b></p>
+
+<pre><code>python3 main.py -m3 -u "https://LAB.web-security-academy.net/filter?category=Gifts" \
+  -t "YOUR_TRACKING_ID" -sc "YOUR_SESSION_ID" -l 20 -w 1 -db postgres -d 10 -th 7
+</code></pre>
+
+<p><b>Help / About pages:</b></p>
+
+<pre><code>python3 main.py -h
+python3 main.py --about
 </code></pre>
 
 <hr>
@@ -189,13 +206,18 @@ python main.py
       <td>Yes</td>
     </tr>
     <tr>
+      <td><code>-db</code> / <code>--dbms</code></td>
+      <td>Target DBMS: <code>auto</code>, <code>mysql</code>, <code>postgres</code>, <code>oracle</code>, <code>mssql</code>, <code>sqlite</code> (default: <code>auto</code>)</td>
+      <td>Optional</td>
+    </tr>
+    <tr>
       <td><code>-w</code> / <code>--workers</code></td>
       <td>Parallel worker threads (use <code>1</code> for PortSwigger)</td>
       <td>Optional</td>
     </tr>
     <tr>
       <td><code>-T</code> / <code>--timeout</code></td>
-      <td>Request timeout in seconds (default: 15)</td>
+      <td>Request timeout in seconds (default: 15; 25 for time-based)</td>
       <td>Optional</td>
     </tr>
     <tr>
@@ -213,6 +235,21 @@ python main.py
       <td>Custom log filepath (default: <code>logs/*_YYYYMMDD_HHMMSS.log</code>)</td>
       <td>Optional</td>
     </tr>
+    <tr>
+      <td><code>-d</code> / <code>--delay</code></td>
+      <td><b>Time-only:</b> Sleep seconds per TRUE condition (default: 10)</td>
+      <td>Optional</td>
+    </tr>
+    <tr>
+      <td><code>-th</code> / <code>--threshold</code></td>
+      <td><b>Time-only:</b> Elapsed seconds &gt;= threshold =&gt; TRUE (default: 7)</td>
+      <td>Optional</td>
+    </tr>
+    <tr>
+      <td><code>--success-indicator</code></td>
+      <td><b>Boolean-only:</b> Success string in response (default: <code>"Welcome back"</code>)</td>
+      <td>Optional</td>
+    </tr>
   </tbody>
 </table>
 
@@ -226,7 +263,9 @@ python main.py
   <li>Ensure the URL ends with <code>/filter?category=...</code> — do not use <code>/login</code>.</li>
   <li>Sessions expire roughly in ~10 minutes, so run the tool immediately after copying cookies.</li>
   <li>For Boolean-based labs, the success string is <code>"Welcome back"</code>. For custom targets, override it with <code>--success-indicator</code>.</li>
-  <li>For Oracle-based error labs, the payload uses <code>SUBSTR()</code> and <code>TO_CHAR(1/0)</code> — the server returns HTTP 500 when the condition is TRUE.</li>
+  <li>For Oracle error-based labs, the payload uses <code>SUBSTR()</code> and <code>TO_CHAR(1/0)</code> — the server returns HTTP 500 when the condition is TRUE.</li>
+  <li>For PostgreSQL time-based labs, the payload uses <code>pg_sleep(10)</code>. Use <code>-db postgres</code> to skip auto-detect, <code>-d 10</code> for a 10s delay, and <code>-th 7</code> for the detection threshold. Give the server time — each character takes ~10 seconds per worker.</li>
+  <li>Time-based auto-detect can be slow; if you know the DBMS (e.g., PortSwigger labs are PostgreSQL), pass <code>-db postgres</code> directly.</li>
 </ul>
 
 <hr>
@@ -237,17 +276,18 @@ python main.py
 
 <pre><code>logs/boolean_sqli_20260104_153034.log
 logs/error_sqli_20260104_154522.log
+logs/time_sqli_20260104_160102.log
 </code></pre>
 
-<p>Each log records every character position found, aiding post-run analysis and debugging.</p>
+<p>Each log records every character position found, aiding post-run analysis and debugging. Time-based logs also record the elapsed time for each payload to help tune <code>-th</code>.</p>
 
 <hr>
 
 <h2>Requirements</h2>
 
-<pre><code>requests>=2.31.0
-urllib3>=2.0.0
-colorama>=0.4.6
+<pre><code>requests&gt;=2.31.0
+urllib3&gt;=2.0.0
+colorama&gt;=0.4.6
 </code></pre>
 
 <p>Install all at once with:</p>

