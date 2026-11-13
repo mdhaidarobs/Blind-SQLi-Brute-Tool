@@ -2,7 +2,7 @@
 
 A command-line tool to automate Blind SQL Injection vulnerability exploitation.
 
-<p><a href="https://www.python.org/"><img src="https://img.shields.io/badge/python-3.x-blue.svg" alt="Python Version"></a><a href="https://opensource.org/licenses/MIT"><img src="https://img.shields.io/badge/License-MIT-yellow.svg" alt="MIT License"></a><a href="https://github.com/mdhaidarobs"><img src="https://img.shields.io/badge/Author-Md%20Haidar-orange.svg" alt="Author"></a></p>
+<p><a href="https://www.python.org/"><img src="https://img.shields.io/badge/python-3.x-blue.svg" alt="Python Version"></a><a href="https://github.com/mdhaidarobs/Blind-SQLi-Brute-Tool/blob/main/LICENSE"><img src="https://img.shields.io/badge/License-MIT-yellow.svg" alt="MIT License"></a><a href="https://github.com/mdhaidarobs"><img src="https://img.shields.io/badge/Author-Md%20Haidar-orange.svg" alt="Author"></a></p>
 
 <p>A lightweight, powerful, and interactive Command-Line Interface (CLI) tool designed to automate <b>Blind SQL Injection</b> testing across three scenarios: <b>Boolean-based</b> (conditional responses), <b>Error-based</b> (Oracle conditional errors / HTTP 500), and <b>Time-based</b> (pg_sleep / SLEEP / WAITFOR). Built for security enthusiasts, penetration testers, and CTF players to practice database security testing in authorized environments such as PortSwigger Web Security Academy.</p>
 
