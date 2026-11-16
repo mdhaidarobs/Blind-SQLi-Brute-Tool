@@ -19,14 +19,12 @@ A command-line tool to automate Blind SQL Injection vulnerability exploitation.
 <h2>Features & Benefits</h2>
 
 <ul>
-  <li><b>Triple Injection Engines:</b> Dedicated modules for Boolean-based (response contains "Welcome back"), Error-based (HTTP 500 / Oracle <code>TO_CHAR(1/0)</code>), and Time-based (PostgreSQL <code>pg_sleep()</code>, MySQL <code>SLEEP()</code>, Oracle <code>DBMS_PIPE.RECEIVE_MESSAGE</code>, MSSQL <code>WAITFOR DELAY</code>) Blind SQLi.</li>
+  <li><b>Triple Injection Engines:</b> Dedicated modules for Boolean-based, Error-based, and Time-based (PostgreSQL, MySQL , Oracle, MSSQL) Blind SQLi.</li>
   <li><b>Auto DBMS Detection:</b> Pass <code>-db auto</code> (default) and the engine probes MySQL, PostgreSQL, Oracle, MSSQL, and SQLite in order, locking onto the first DBMS that responds — or force a specific DBMS with <code>-db postgres</code> / <code>-db oracle</code> / etc.</li>
-  <li><b>Smart Selector Menu:</b> Launch <code>main.py</code> to pick the correct engine interactively (1 = Boolean, 2 = Error, 3 = Time), view Help (98), About (99), or Exit (0). Direct CLI flags <code>-m1</code> / <code>-m2</code> / <code>-m3</code> are also available.</li>
   <li><b>Interactive CLI Wizard:</b> Full user control over URL, Target Cookie name, Custom Session Cookies, Target Username(s), Password Length, DBMS, proxy, workers, timeout, and time-based delay/threshold.</li>
   <li><b>Manual Password Length:</b> User supplies the exact length via <code>-l</code> for maximum speed — no slow auto-detection overhead.</li>
   <li><b>Multi-Threaded Enumeration:</b> Parallel character extraction via <code>ThreadPoolExecutor</code> (configurable workers).</li>
   <li><b>Triple Detection Logic:</b> Boolean engine matches a configurable success string; Error engine detects server-side 500 errors reliably; Time engine measures elapsed time against a configurable threshold.</li>
-  <li><b>DBMS-Aware Payloads:</b> Uses <code>substring()</code> / <code>SUBSTR()</code> / <code>SUBSTRING()</code>, <code>pg_sleep()</code> / <code>SLEEP()</code> / <code>WAITFOR DELAY</code>, <code>TO_CHAR(1/0)</code> depending on the detected DBMS.</li>
   <li><b>Custom Charset:</b> Alphanumeric by default; enable <code>-s</code> flag to include special characters.</li>
   <li><b>Burp Suite Integration:</b> Built-in proxy support to route traffic through Burp Suite (<code>127.0.0.1:8080</code>) for debugging and monitoring requests.</li>
   <li><b>Browser-Like Headers:</b> Sends realistic User-Agent and browser headers to bypass basic WAF filtering.</li>
