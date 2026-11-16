@@ -4,7 +4,7 @@ A command-line tool to automate Blind SQL Injection vulnerability exploitation.
 
 <p><a href="https://www.python.org/"><img src="https://img.shields.io/badge/python-3.x-blue.svg" alt="Python Version"></a><a href="https://github.com/mdhaidarobs/Blind-SQLi-Brute-Tool/blob/main/LICENSE"><img src="https://img.shields.io/badge/License-MIT-yellow.svg" alt="MIT License"></a><a href="https://github.com/mdhaidarobs"><img src="https://img.shields.io/badge/Author-Md%20Haidar-orange.svg" alt="Author"></a></p>
 
-<p>A lightweight, powerful, and interactive Command-Line Interface (CLI) tool designed to automate <b>Blind SQL Injection</b> testing across three scenarios: <b>Boolean-based</b> (conditional responses), <b>Error-based</b> (Oracle conditional errors / HTTP 500), and <b>Time-based</b> (pg_sleep / SLEEP / WAITFOR). Built for security enthusiasts, penetration testers, and CTF players to practice database security testing in authorized environments such as PortSwigger Web Security Academy.</p>
+<p>A lightweight, powerful, and interactive Command-Line Interface (CLI) tool designed to automate <b>Blind SQL Injection</b> testing across three scenarios: <b>Boolean-based</b> , <b>Error-based</b> , and <b>Time-based</b>. Built for security enthusiasts, penetration testers, and CTF players to practice database security testing in authorized environments such as PortSwigger Web Security Academy.</p>
 
 <hr>
 
@@ -161,112 +161,6 @@ python main.py
 <pre><code>python3 main.py -h
 python3 main.py --about
 </code></pre>
-
-<hr>
-
-<h2>Available Arguments</h2>
-
-<table>
-  <thead>
-    <tr>
-      <th>Flag</th>
-      <th>Description</th>
-      <th>Required</th>
-    </tr>
-  </thead>
-  <tbody>
-    <tr>
-      <td><code>-u</code> / <code>--url</code></td>
-      <td>Target lab URL (base endpoint or <code>/filter?category=...</code>)</td>
-      <td>Yes</td>
-    </tr>
-    <tr>
-      <td><code>-t</code> / <code>--tracking</code></td>
-      <td>Base TrackingId value (without trailing <code>' --</code>)</td>
-      <td>Yes</td>
-    </tr>
-    <tr>
-      <td><code>-sc</code> / <code>--session</code></td>
-      <td>Session cookie value (for PortSwigger labs)</td>
-      <td>Optional</td>
-    </tr>
-    <tr>
-      <td><code>-c</code> / <code>--cookie</code></td>
-      <td>Vulnerable cookie name (default: <code>TrackingId</code>)</td>
-      <td>Optional</td>
-    </tr>
-    <tr>
-      <td><code>-usr</code> / <code>--users</code></td>
-      <td>Comma-separated usernames (default: <code>administrator</code>)</td>
-      <td>Optional</td>
-    </tr>
-    <tr>
-      <td><code>-l</code> / <code>--length</code></td>
-      <td>Password length (mandatory — must be a positive integer)</td>
-      <td>Yes</td>
-    </tr>
-    <tr>
-      <td><code>-db</code> / <code>--dbms</code></td>
-      <td>Target DBMS: <code>auto</code>, <code>mysql</code>, <code>postgres</code>, <code>oracle</code>, <code>mssql</code>, <code>sqlite</code> (default: <code>auto</code>)</td>
-      <td>Optional</td>
-    </tr>
-    <tr>
-      <td><code>-w</code> / <code>--workers</code></td>
-      <td>Parallel worker threads (use <code>1</code> for PortSwigger)</td>
-      <td>Optional</td>
-    </tr>
-    <tr>
-      <td><code>-T</code> / <code>--timeout</code></td>
-      <td>Request timeout in seconds (default: 15; 25 for time-based)</td>
-      <td>Optional</td>
-    </tr>
-    <tr>
-      <td><code>-p</code> / <code>--proxy</code></td>
-      <td>Proxy URL (e.g., <code>http://127.0.0.1:8080</code>)</td>
-      <td>Optional</td>
-    </tr>
-    <tr>
-      <td><code>-s</code> / <code>--special</code></td>
-      <td>Include special characters in the charset</td>
-      <td>Optional</td>
-    </tr>
-    <tr>
-      <td><code>-o</code> / <code>--log</code></td>
-      <td>Custom log filepath (default: <code>logs/*_YYYYMMDD_HHMMSS.log</code>)</td>
-      <td>Optional</td>
-    </tr>
-    <tr>
-      <td><code>-d</code> / <code>--delay</code></td>
-      <td><b>Time-only:</b> Sleep seconds per TRUE condition (default: 10)</td>
-      <td>Optional</td>
-    </tr>
-    <tr>
-      <td><code>-th</code> / <code>--threshold</code></td>
-      <td><b>Time-only:</b> Elapsed seconds &gt;= threshold =&gt; TRUE (default: 7)</td>
-      <td>Optional</td>
-    </tr>
-    <tr>
-      <td><code>--success-indicator</code></td>
-      <td><b>Boolean-only:</b> Success string in response (default: <code>"Welcome back"</code>)</td>
-      <td>Optional</td>
-    </tr>
-  </tbody>
-</table>
-
-<hr>
-
-<h2>PortSwigger Lab Tips</h2>
-
-<ul>
-  <li>Copy a <b>fresh</b> <code>TrackingId</code> and <code>session</code> cookie from your browser before every run.</li>
-  <li>Always set <code>-w 1</code> (single worker) to avoid rate-limiting on PortSwigger servers.</li>
-  <li>Ensure the URL ends with <code>/filter?category=...</code> — do not use <code>/login</code>.</li>
-  <li>Sessions expire roughly in ~10 minutes, so run the tool immediately after copying cookies.</li>
-  <li>For Boolean-based labs, the success string is <code>"Welcome back"</code>. For custom targets, override it with <code>--success-indicator</code>.</li>
-  <li>For Oracle error-based labs, the payload uses <code>SUBSTR()</code> and <code>TO_CHAR(1/0)</code> — the server returns HTTP 500 when the condition is TRUE.</li>
-  <li>For PostgreSQL time-based labs, the payload uses <code>pg_sleep(10)</code>. Use <code>-db postgres</code> to skip auto-detect, <code>-d 10</code> for a 10s delay, and <code>-th 7</code> for the detection threshold. Give the server time — each character takes ~10 seconds per worker.</li>
-  <li>Time-based auto-detect can be slow; if you know the DBMS (e.g., PortSwigger labs are PostgreSQL), pass <code>-db postgres</code> directly.</li>
-</ul>
 
 <hr>
 
